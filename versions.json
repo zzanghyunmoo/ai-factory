@@ -1,0 +1,42 @@
+{
+  "ubuntu": {
+    "version": "24.04", "build": "20240423", "architecture": "amd64",
+    "url": "https://cloud-images.ubuntu.com/wsl/releases/noble/20240423/ubuntu-noble-wsl-amd64-24.04lts.rootfs.tar.gz",
+    "sha256": "2a790896740b14d637dbdc583cce1ba081ac53b9e9cdb46dc09a2f73abbd9934"
+  },
+  "opentofu": {
+    "version": "1.12.6",
+    "url": "https://github.com/opentofu/opentofu/releases/download/v1.12.6/tofu_1.12.6_windows_amd64.zip",
+    "sha256": "0d1421721cf9ec24b41b698a9620dda218d47fa7e76ac3dc15cdbc13bd79b0bb"
+  },
+  "kind": {
+    "version": "0.33.0",
+    "url": "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64",
+    "sha256": "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d",
+    "nodeImage": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
+  },
+  "kubectl": {
+    "version": "1.37.0",
+    "url": "https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl",
+    "sha256": "6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f"
+  },
+  "ansible": {
+    "version": "2.21.4",
+    "url": "https://files.pythonhosted.org/packages/a1/05/d4e28474dd027db4d60fef2422cf6bc80df100ab32e5fa5e7aad898ffd55/ansible_core-2.21.4-py3-none-any.whl",
+    "sha256": "ebe74d9c8fadcb41ad2151e031bf1e785e3098aaa015019b4e19a0a96f0dcc4f"
+  },
+  "smoke": {
+    "image": "nginx:1.30.5-alpine@sha256:985220252f3863977e468f611ef118ebd01421289dd86ee1ae99cb068c3bce2b"
+  },
+  "docker": {
+    "keyUrl": "https://download.docker.com/linux/ubuntu/gpg",
+    "keySha256": "1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570",
+    "packages": {
+      "docker-ce": "5:29.8.1-1~ubuntu.24.04~noble",
+      "docker-ce-cli": "5:29.8.1-1~ubuntu.24.04~noble",
+      "containerd.io": "2.3.5-1~ubuntu.24.04~noble",
+      "docker-buildx-plugin": "0.37.1-1~ubuntu.24.04~noble",
+      "docker-compose-plugin": "5.5.1-1~ubuntu.24.04~noble"
+    }
+  }
+}

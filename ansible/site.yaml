@@ -1,0 +1,243 @@
+---
+- name: Configure the owned Ubuntu guest
+  hosts: localhost
+  gather_facts: true
+  become: false
+  vars:
+    pins: >-
+      {{ lookup('ansible.builtin.file', infra_root ~ '/versions.json')
+         | from_json }}
+    guard_argv:
+      - /usr/bin/python3
+      - "{{ infra_root }}/scripts/guest/guard.py"
+    guard_options:
+      - --root
+      - "{{ infra_root }}"
+      - --owner-id
+      - "{{ infra_owner }}"
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    NEEDRESTART_MODE: a
+    DOCKER_HOST: unix:///var/run/docker.sock
+    KIND_EXPERIMENTAL_PROVIDER: docker
+    KUBECONFIG: "{{ infra_root }}/.local/kubeconfig"
+  tasks:
+    - name: Verify guest ownership before convergence
+      ansible.builtin.command:
+        argv: "{{ guard_argv + ['owner'] + guard_options }}"
+      changed_when: false
+
+    - name: Require the supported root guest
+      ansible.builtin.assert:
+        that:
+          - infra_root == '/opt/infra'
+          - ansible_facts['user_id'] == 'root'
+          - ansible_facts['distribution'] == 'Ubuntu'
+          - ansible_facts['distribution_version'] == '24.04'
+          - ansible_facts['architecture'] == 'x86_64'
+          - ansible_facts['service_mgr'] == 'systemd'
+        quiet: true
+
+    - name: Keep project state and downloads private
+      ansible.builtin.file:
+        path: "{{ infra_root }}/.local/{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - ''
+        - downloads
+        - tmp
+
+    - name: Inspect the one-time OS baseline stamp
+      ansible.builtin.stat:
+        path: "{{ infra_root }}/.local/baseline-{{ pins.ubuntu.build }}.patched"
+      register: baseline
+
+    # This is security patching of the old rootfs, not an OS snapshot lock.
+    - name: Patch the imported OS baseline once
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        lock_timeout: 120
+      when: not baseline.stat.exists
+
+    - name: Persist the baseline stamp only after successful upgrade
+      ansible.builtin.copy:
+        dest: "{{ infra_root }}/.local/baseline-{{ pins.ubuntu.build }}.patched"
+        content: >
+          Ubuntu {{ pins.ubuntu.version }} rootfs {{ pins.ubuntu.build }}
+          patched once. Transitive apt packages are not reproducibly locked.
+        mode: '0600'
+      when: not baseline.stat.exists
+
+    - name: Install the HTTP smoke client
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: true
+        cache_valid_time: 86400
+        install_recommends: false
+        lock_timeout: 120
+
+    - name: Create the apt keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Install the checksum-verified official Docker signing key
+      ansible.builtin.get_url:
+        url: "{{ pins.docker.keyUrl }}"
+        dest: /etc/apt/keyrings/docker.asc
+        checksum: "sha256:{{ pins.docker.keySha256 }}"
+        mode: '0644'
+        timeout: 30
+
+    - name: Configure only the signed official noble Docker repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/infra-docker.list
+        content: >
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu noble stable
+        mode: '0644'
+      register: docker_source
+
+    - name: Pin the declared top-level Docker packages
+      ansible.builtin.copy:
+        dest: /etc/apt/preferences.d/infra-docker
+        mode: '0644'
+        content: |
+          {% for package, version in pins.docker.packages.items() %}
+          Package: {{ package }}
+          Pin: version {{ version }}
+          Pin-Priority: 1001
+
+          {% endfor %}
+
+    - name: Refresh apt after adding the Docker source
+      ansible.builtin.apt:
+        update_cache: true
+        lock_timeout: 120
+      when: docker_source.changed
+
+    - name: Install the exact Docker Engine package versions
+      ansible.builtin.apt:
+        name: >-
+          {{ pins.docker.packages.keys()
+             | zip(pins.docker.packages.values()) | map('join', '=') | list }}
+        state: present
+        allow_downgrade: true
+        install_recommends: false
+        lock_timeout: 120
+
+    - name: Enable and start rootful Docker
+      ansible.builtin.systemd_service:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Wait for the Docker daemon
+      ansible.builtin.command:
+        argv: [timeout, 10s, docker, info]
+      changed_when: false
+      register: docker_ready
+      until: docker_ready.rc == 0
+      retries: 12
+      delay: 5
+
+    - name: Install checksum-verified kind and kubectl
+      ansible.builtin.get_url:
+        url: "{{ pins[item].url }}"
+        dest: "/usr/local/bin/{{ item }}"
+        checksum: "sha256:{{ pins[item].sha256 }}"
+        mode: '0755'
+        timeout: 30
+      loop: [kind, kubectl]
+
+    - name: Reject foreign, partial, changed or replaced infra containers
+      ansible.builtin.command:
+        argv: >-
+          {{ guard_argv + ['preflight', '--allow-stopped'] + guard_options }}
+      changed_when: false
+      register: cluster
+
+    - name: Resume only matching owned containers after guest restart
+      ansible.builtin.command:
+        argv: [docker, start, infra-control-plane, infra-worker]
+      when: cluster.stdout == 'stopped'
+      changed_when: true
+
+    - name: Create only when both containers and ownership record are absent
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kind
+          - create
+          - cluster
+          - --name
+          - infra
+          - --config
+          - "{{ infra_root }}/config/kind.yaml"
+          - --image
+          - "{{ pins.kind.nodeImage }}"
+          - --kubeconfig
+          - "{{ infra_root }}/.local/kind-create.kubeconfig"
+          - --wait
+          - 300s
+          - --retain
+      when: cluster.stdout == 'absent'
+      changed_when: true
+      # --retain keeps partial containers on failure; never auto-delete.
+
+    - name: Read the explicit cluster kubeconfig without exposing credentials
+      ansible.builtin.command:
+        argv: [/usr/local/bin/kind, get, kubeconfig, --name, infra]
+      changed_when: false
+      register: cluster_kubeconfig
+      no_log: true
+
+    - name: Export kubeconfig atomically only when content changes
+      ansible.builtin.copy:
+        dest: "{{ infra_root }}/.local/kubeconfig"
+        content: "{{ cluster_kubeconfig.stdout }}\n"
+        mode: '0600'
+      no_log: true
+
+    - name: Remove the private creation-only kubeconfig copy
+      ansible.builtin.file:
+        path: "{{ infra_root }}/.local/kind-create.kubeconfig"
+        state: absent
+
+    - name: Wait for both declared Kubernetes nodes to become Ready
+      ansible.builtin.command:
+        argv: "{{ guard_argv + ['nodes'] + guard_options }}"
+      changed_when: false
+      register: nodes_ready
+      until: nodes_ready.rc == 0
+      retries: 30
+      delay: 5
+
+    - name: Check authenticated API readiness
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --kubeconfig
+          - "{{ infra_root }}/.local/kubeconfig"
+          - --request-timeout=20s
+          - get
+          - --raw=/readyz
+      changed_when: false
+      register: api_ready
+      until: api_ready.rc == 0
+      retries: 6
+      delay: 5
+
+    - name: Record ownership only after successful creation and readiness
+      ansible.builtin.command:
+        argv: "{{ guard_argv + ['record'] + guard_options }}"
+      when: cluster.stdout == 'absent'
+      changed_when: true
+
+    - name: Verify installed tool and package pins
+      ansible.builtin.command:
+        argv: "{{ guard_argv + ['versions'] + guard_options }}"
+      changed_when: false

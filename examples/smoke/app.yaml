@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infra-smoke
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: index
+  namespace: infra-smoke
+data:
+  index.html: "infra-ready\n"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: infra-smoke
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infra-smoke
+  template:
+    metadata:
+      labels:
+        app: infra-smoke
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.30.5-alpine@sha256:985220252f3863977e468f611ef118ebd01421289dd86ee1ae99cb068c3bce2b
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 2
+          volumeMounts:
+            - name: index
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+      volumes:
+        - name: index
+          configMap:
+            name: index
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: infra-smoke
+spec:
+  type: NodePort
+  selector:
+    app: infra-smoke
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP
