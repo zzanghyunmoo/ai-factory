@@ -29,6 +29,7 @@ Windows PowerShell 5.1에서 프로젝트 루트를 작업 디렉터리로 사�
 Bootstrap은 클러스터 소유권·게스트 상태를 검사하고 namespace, 비공개 자격증명과 Argo CD를 설치한다.
 공식 Argo CD manifest는 `versions.json`의 SHA256으로 검증하고, 모든 새 컨테이너 이미지는 각 Kustomize manifest에 버전과 digest를 고정한다.
 GitOps에서 사용할 공개 저장소 경로와 revision은 `kubernetes/bootstrap/*application.yaml`에 있다.
+두 Application은 `main`을 추적한다. 최초 PR을 merge해 배포 경로가 `main`에 존재한 뒤 Deploy를 실행한다.
 원격 반영은 프로젝트 AGENTS.md에 따라 승인받고, 해당 revision에 배포 파일이 존재하는 것을 확인한다.
 
 ```powershell
