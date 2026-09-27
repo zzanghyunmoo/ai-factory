@@ -6,7 +6,7 @@ Ansible로 Docker와 kind 기반 Kubernetes 클러스터를 설치한다.
 
 현재는 **Windows WSL2에서 Ubuntu 24.04와 Kubernetes v1.37.0의 2노드 클러스터**
 (control-plane 1개, worker 1개)를 구성한다. macOS/Lima와 클라우드는 향후 지원 대상이며,
-LiteLLM 자체는 아직 설치하지 않는다. 프로덕션 운영용 클러스터가 아닌 로컬 개발 환경이다.
+Argo CD·공유 PostgreSQL·LiteLLM은 별도 앱 배포 명령으로 설치한다. 프로덕션 운영용 클러스터가 아닌 로컬 개발 환경이다.
 
 ## 전제조건
 
@@ -57,6 +57,12 @@ wsl --list --verbose
 
 첫 Apply에서는 OS 패키지와 컨테이너 이미지를 내려받으므로 시간이 걸릴 수 있다.
 설치 버전은 [versions.json](versions.json)에서 확인할 수 있다.
+
+## Argo CD and LiteLLM
+
+기반 클러스터 설치 후 [LLM 게이트웨이 운영 안내](docs/litellm.md)를 따른다.
+PostgreSQL은 다른 서비스도 별도 DB·계정으로 연결할 수 있는 독립 Kustomize 컴포넌트이며, LiteLLM과 별도 Argo CD Application으로 관리한다.
+초기 LLM 모니터링은 LiteLLM Admin UI의 사용량·토큰·비용·요청 로그를 사용한다.
 
 ## 실행 확인과 클러스터 사용
 

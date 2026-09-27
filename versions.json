@@ -28,6 +28,11 @@
   "smoke": {
     "image": "nginx:1.30.5-alpine@sha256:985220252f3863977e468f611ef118ebd01421289dd86ee1ae99cb068c3bce2b"
   },
+  "argocd": {
+    "version": "3.5.3",
+    "url": "https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.3/manifests/install.yaml",
+    "sha256": "7efe2d6bbc03f63623640f1e4198f16c84009d510fb810ef71e56df1b7614ba9"
+  },
   "docker": {
     "keyUrl": "https://download.docker.com/linux/ubuntu/gpg",
     "keySha256": "1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570",
