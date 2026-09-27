@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ai-factory
+  namespace: argocd
+spec:
+  description: Local LiteLLM gateway
+  sourceRepos:
+    - https://github.com/zzanghyunmoo/ai-factory.git
+  destinations:
+    - namespace: postgresql
+      server: https://kubernetes.default.svc
+    - namespace: litellm
+      server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: PersistentVolumeClaim
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+spec:
+  project: ai-factory
+  source:
+    repoURL: https://github.com/zzanghyunmoo/ai-factory.git
+    targetRevision: feat/argocd-litellm
+    path: kubernetes/postgresql
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: postgresql
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
